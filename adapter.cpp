@@ -1,6 +1,7 @@
 #include <chrono>
 #include <thread>
 #include <napi.h>
+#include "Payload.h"
 
 using namespace Napi;
 
@@ -16,7 +17,6 @@ Value Adapter(const CallbackInfo &info) {
 		throw TypeError::New(env, "Expected first arg to be function");
 	}
 
-	// Create a ThreadSafeFunction
 	tsfn = ThreadSafeFunction::New(env, info[0].As<Function>(), // JavaScript function called asynchronously
 			"Resource Name",         // Name
 			0,                       // Unlimited queue
@@ -25,34 +25,25 @@ Value Adapter(const CallbackInfo &info) {
 				nativeThread.join();
 			});
 
-	// Create a native thread
 	nativeThread = std::thread([] {
-		auto callback = []( Napi::Env env, Function jsCallback, int* value ) {
-			// Transform native data into JS data, passing it to the provided
-			// `jsCallback` -- the TSFN's JavaScript function.
-			jsCallback.Call( {Number::New( env, *value )});
-
-			// We're finished with the data.
+		auto callback = []( Napi::Env env, Function jsCallback, Payload* value ) {
+			jsCallback.Call( {value->toMsgObject(env)});
 			delete value;
 		};
 
 		while (true)
 		{
-			// Create new data
-			int* value = new int( clock() );
+			Payload* value = new Payload{10};
 
-			// Perform a blocking call
 			napi_status status = tsfn.BlockingCall( value, callback );
 			if ( status != napi_ok )
 			{
-				// Handle error
 				break;
 			}
 
 			std::this_thread::sleep_for( std::chrono::seconds( 1 ) );
 		}
 
-		// Release the thread-safe function
 		tsfn.Release();
 	});
 
