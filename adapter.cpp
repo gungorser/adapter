@@ -8,6 +8,9 @@ using namespace Napi;
 std::thread nativeThread;
 ThreadSafeFunction tsfn;
 
+void AdapterFrameworkInit(){
+}
+
 Value Adapter(const CallbackInfo &info) {
 	Napi::Env env = info.Env();
 
@@ -26,21 +29,17 @@ Value Adapter(const CallbackInfo &info) {
 			});
 
 	nativeThread = std::thread([] {
+		AdapterFrameworkInit();
 		auto callback = []( Napi::Env env, Function jsCallback, Payload* value ) {
 			jsCallback.Call( {value->toMsgObject(env)});
 			delete value;
 		};
 
-		while (true)
-		{
+		while (true) {
 			Payload* value = new Payload{10};
-
-			napi_status status = tsfn.BlockingCall( value, callback );
-			if ( status != napi_ok )
-			{
-				break;
+			napi_status status;
+			if(( status = tsfn.BlockingCall( value, callback )) != napi_ok ){
 			}
-
 			std::this_thread::sleep_for( std::chrono::seconds( 1 ) );
 		}
 
